@@ -16,13 +16,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/polygonledger/edn"
 	"github.com/polygonledger/node/block"
 	"github.com/polygonledger/node/crypto"
-	"github.com/polygonledger/node/ntcl"
+	"github.com/polygonledger/node/netio"
 	"github.com/polygonledger/node/parser"
 )
 
-var Peers []ntcl.Peer
+var Peers []netio.Peer
 
 const node_port = 8888
 
@@ -132,13 +133,13 @@ func Createtx() {
 }
 
 //
-func MakeRandomTx(peer ntcl.Peer) {
+func MakeRandomTx(peer netio.Peer) {
 	//make a random transaction by requesting random account from node
 	//get random account
 
-	// req_msg := ntcl.EncodeMsgString(ntcl.REQ, ntcl.CMD_RANDOM_ACCOUNT, "emptydata")
+	// req_msg := netio.EncodeMsgString(netio.REQ, netio.CMD_RANDOM_ACCOUNT, "emptydata")
 
-	// response := ntcl.RequestReplyChan(req_msg, peer.Req_chan, peer.Rep_chan)
+	// response := netio.RequestReplyChan(req_msg, peer.Req_chan, peer.Rep_chan)
 
 	// var a block.Account
 	// dataBytes := []byte(response.Data)
@@ -150,13 +151,13 @@ func MakeRandomTx(peer ntcl.Peer) {
 	// //use this random account to send coins from
 
 	// //send Tx
-	// testTx := ntcl.RandomTx(a)
+	// testTx := netio.RandomTx(a)
 	// txJson, _ := json.Marshal(testTx)
 	// log.Println("txJson ", txJson)
 
-	// req_msg = ntcl.EncodeMessageTx(txJson)
+	// req_msg = netio.EncodeMessageTx(txJson)
 
-	// response = ntcl.RequestReplyChan(req_msg, peer.Req_chan, peer.Rep_chan)
+	// response = netio.RequestReplyChan(req_msg, peer.Req_chan, peer.Rep_chan)
 	// log.Print("response msg ", response)
 
 	// return nil
@@ -196,12 +197,12 @@ type Configuration struct {
 	verbose       bool
 }
 
-func addPeerOut(p ntcl.Peer) {
+func addPeerOut(p netio.Peer) {
 	Peers = append(Peers, p)
 	log.Println("peers now", Peers)
 }
 
-func initClient(mainPeerAddress string, verbose bool) ntcl.Ntchan {
+func initClient(mainPeerAddress string, verbose bool) netio.Ntchan {
 
 	addr := mainPeerAddress + ":" + strconv.Itoa(node_port)
 	log.Println("dial ", addr)
@@ -212,12 +213,12 @@ func initClient(mainPeerAddress string, verbose bool) ntcl.Ntchan {
 	}
 
 	log.Println("connected")
-	ntchan := ntcl.ConnNtchan(conn, "client", addr, verbose)
+	ntchan := netio.ConnNtchan(conn, "client", addr, verbose)
 
-	go ntcl.ReadLoop(ntchan)
-	go ntcl.ReadProcessor(ntchan)
-	go ntcl.WriteProcessor(ntchan)
-	go ntcl.WriteLoop(ntchan, 300*time.Millisecond)
+	go netio.ReadLoop(ntchan)
+	go netio.ReadProcessor(ntchan)
+	go netio.WriteProcessor(ntchan)
+	go netio.WriteLoop(ntchan, 300*time.Millisecond)
 	return ntchan
 
 }
@@ -239,7 +240,7 @@ func track(s string, startTime time.Time) {
 // func ReceiveAccount(rw *bufio.ReadWriter) error {
 // 	log.Println("RequestAccount ", CMD_RANDOM_ACCOUNT)
 
-func PushTx(ntchan ntcl.Ntchan) error {
+func PushTx(ntchan netio.Ntchan) error {
 	log.Println("PushTx")
 
 	dat, _ := ioutil.ReadFile("tx.json")
@@ -253,32 +254,36 @@ func PushTx(ntchan ntcl.Ntchan) error {
 	txJson, _ := json.Marshal(tx)
 	log.Println("txJson ", string(txJson))
 
-	req_msg := ntcl.EncodeMessageTx(txJson)
-	log.Print(" ", req_msg)
+	//TODO fix
+	// req_msg := netio.EncodeMessageTx(txJson)
+	// log.Print(" ", req_msg)
 
-	ntchan.REQ_out <- req_msg
+	// ntchan.REQ_out <- req_msg
 
-	rep := <-ntchan.REP_in
-	log.Println("reply ", rep)
+	// rep := <-ntchan.REP_in
+	// log.Println("reply ", rep)
 
 	return nil
 }
 
-func fetchbalance(ntchan ntcl.Ntchan, addr string) {
-	req_msg := ntcl.EncodeMsgMapData(ntcl.REQ, ntcl.CMD_BALANCE, string(addr))
+func fetchbalance(ntchan netio.Ntchan, addr string) {
+	//req_msg := netio.EncodeMsgMapData(netio.REQ, netio.CMD_BALANCE, string(addr))
+	balJson, _ := json.Marshal(addr)
+	msg := netio.Message{MessageType: netio.REQ, Command: netio.CMD_BALANCE, Data: []byte(balJson)}
+	req_msg := netio.ToJSONMessage(msg)
 	log.Println(req_msg)
 
 	ntchan.REQ_out <- req_msg
 
 	// rep := <-ntchan.REP_in
 	// //log.Println("reply ", rep)
-	// rep = strings.Trim(rep, string(ntcl.DELIM))
-	// s := strings.Split(rep, string(ntcl.DELIM_HEAD))
+	// rep = strings.Trim(rep, string(netio.DELIM))
+	// s := strings.Split(rep, string(netio.DELIM_HEAD))
 	// balance_int, _ := strconv.Atoi(string(s[2]))
 	// log.Println(fmt.Sprintf("balance of %s %d", addr, balance_int))
 }
 
-func Mybalance(ntchan ntcl.Ntchan) error {
+func Mybalance(ntchan netio.Ntchan) error {
 
 	kp := ReadKeys(keysfile)
 	pubk := crypto.PubKeyToHex(kp.PubKey)
@@ -293,14 +298,14 @@ func Mybalance(ntchan ntcl.Ntchan) error {
 	return nil
 }
 
-func Getbalance(ntchan ntcl.Ntchan) error {
+func Getbalance(ntchan netio.Ntchan) error {
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Print("Enter address: ")
 	addr, _ := reader.ReadString('\n')
 	addr = strings.Trim(addr, string('\n'))
 
 	fetchbalance(ntchan, addr)
-	// response := ntcl.RequestReplyChan(req_msg, peer.Req_chan, peer.Rep_chan)
+	// response := netio.RequestReplyChan(req_msg, peer.Req_chan, peer.Rep_chan)
 	// log.Println("response ", response)
 	// var balance int
 	// if err := json.Unmarshal(response.Data, &balance); err != nil {
@@ -311,10 +316,13 @@ func Getbalance(ntchan ntcl.Ntchan) error {
 	return nil
 }
 
-func Getblockheight(peer ntcl.Peer) error {
-	req_msg := ntcl.EncodeMsgMap(ntcl.REQ, ntcl.CMD_BLOCKHEIGHT)
+func Getblockheight(peer netio.Peer) error {
+	//req_msg := netio.EncodeMsgMap(netio.REQ, netio.CMD_BLOCKHEIGHT)
+	msg := netio.Message{MessageType: netio.REQ, Command: netio.CMD_BLOCKHEIGHT}
+	req_msg := netio.ToJSONMessage(msg)
+
 	log.Println(req_msg)
-	// response := ntcl.RequestReplyChan(req_msg, peer.Req_chan, peer.Rep_chan)
+	// response := netio.RequestReplyChan(req_msg, peer.Req_chan, peer.Rep_chan)
 
 	// var blockheight int
 	// if err := json.Unmarshal(response.Data, &blockheight); err != nil {
@@ -325,10 +333,12 @@ func Getblockheight(peer ntcl.Peer) error {
 	return nil
 }
 
-func Gettxpool(peer ntcl.Peer) error {
-	req_msg := ntcl.EncodeMsgMap(ntcl.REQ, ntcl.CMD_GETTXPOOL)
+func Gettxpool(peer netio.Peer) error {
+	//req_msg := netio.EncodeMsgMap(netio.REQ, netio.CMD_GETTXPOOL)
+	msg := netio.Message{MessageType: netio.REQ, Command: netio.CMD_GETTXPOOL}
+	req_msg := netio.ToJSONMessage(msg)
 	log.Println("> ", req_msg)
-	// resp := ntcl.RequestReplyChan(req_msg, peer.Req_chan, peer.Rep_chan)
+	// resp := netio.RequestReplyChan(req_msg, peer.Req_chan, peer.Rep_chan)
 
 	// log.Println("rcvmsg ", resp)
 	// log.Println("data ", resp.Data)
@@ -350,13 +360,13 @@ func runPeermode(cmd string, config Configuration) {
 
 	for _, peerAddress := range config.PeerAddresses {
 
-		//p := ntcl.CreatePeer(peerAddress, config.NodePort)
+		//p := netio.CreatePeer(peerAddress, config.NodePort)
 		//log.Println("add peer ", p)
 
 		ntchan := initClient(peerAddress, config.verbose)
 
 		//
-		p := ntcl.CreatePeer(peerAddress, peerAddress, config.NodePort, ntchan)
+		p := netio.CreatePeer(peerAddress, peerAddress, config.NodePort, ntchan)
 
 		//log.Println("init  ", ntchan)
 		ping(p)
@@ -390,15 +400,16 @@ func runPeermode(cmd string, config Configuration) {
 }
 
 //TODO common
-func ping(peer ntcl.Peer) {
+func ping(peer netio.Peer) {
 
-	// req_msg := ntcl.EncodeMsgString(ntcl.REQ, ntcl.CMD_PING, "")
+	// req_msg := netio.EncodeMsgString(netio.REQ, netio.CMD_PING, "")
 
 	//subscribe example
 	//reqs := "REQ#PING#|"
-	req_msg := ntcl.EncodeMsgMap(ntcl.REQ, ntcl.CMD_PING)
+	msg := netio.Message{MessageType: netio.REQ, Command: netio.CMD_PING}
+	req_msg := netio.ToJSONMessage(msg)
 	peer.NTchan.REQ_out <- req_msg
-	//ntcl.NetWrite(ntchan, reqs)
+	//netio.NetWrite(ntchan, reqs)
 
 	time.Sleep(1000 * time.Millisecond)
 
@@ -408,26 +419,30 @@ func ping(peer ntcl.Peer) {
 
 }
 
-func request_reply(peer ntcl.Peer, req_msg string) {
+func request_reply(peer netio.Peer, req_msg string) string {
 	peer.NTchan.REQ_out <- req_msg
 	time.Sleep(1000 * time.Millisecond)
 	reply := <-peer.NTchan.REP_in
 	log.Println("reply ", reply)
+	return reply
 }
 
-func status(peer ntcl.Peer) {
+func status(peer netio.Peer) {
 	req_msg := "{:REQ STATUS}"
 	request_reply(peer, req_msg)
 }
 
-func MakeFaucet(ntchan ntcl.Ntchan) {
+func MakeFaucet(ntchan netio.Ntchan) {
 	log.Println("read keys")
 	kp := ReadKeys(keysfile)
 	pubk := crypto.PubKeyToHex(kp.PubKey)
 
 	addr := crypto.Address(pubk)
 	log.Println("request faucet to ", addr)
-	req_msg := ntcl.EncodeMsgMapData(ntcl.REQ, ntcl.CMD_FAUCET, addr)
+	//req_msg := netio.EncodeMsgMapData(netio.REQ, netio.CMD_FAUCET, addr)
+	aJson, _ := json.Marshal(addr)
+	msg := netio.Message{MessageType: netio.REQ, Command: netio.CMD_FAUCET, Data: []byte(aJson)}
+	req_msg := netio.ToJSONMessage(msg)
 
 	ntchan.REQ_out <- req_msg
 
@@ -436,7 +451,10 @@ func MakeFaucet(ntchan ntcl.Ntchan) {
 	log.Println("wait for block....")
 	time.Sleep(5000 * time.Millisecond)
 
-	req_msg2 := ntcl.EncodeMsgMapData(ntcl.REQ, ntcl.CMD_BALANCE, addr)
+	aJson, _ = json.Marshal(addr)
+	msg = netio.Message{MessageType: netio.REQ, Command: netio.CMD_BALANCE, Data: []byte(aJson)}
+	//req_msg2 := netio.EncodeMsgMapData(netio.REQ, netio.CMD_BALANCE, addr)
+	req_msg2 := netio.ToJSONMessage(msg)
 	ntchan.REQ_out <- req_msg2
 
 	rep2 := <-ntchan.REP_in
@@ -446,11 +464,15 @@ func MakeFaucet(ntchan ntcl.Ntchan) {
 }
 
 //run client against single node, just use first IP address in peers i.e. mainpeer
+type AccountState struct {
+	Accounts map[string]int
+}
+
 func runSingleMode(cmd string, config Configuration) {
 
 	mainPeerAddress := config.PeerAddresses[0]
 	ntchan := initClient(mainPeerAddress, config.verbose)
-	p := ntcl.CreatePeer(mainPeerAddress, mainPeerAddress, config.NodePort, ntchan)
+	p := netio.CreatePeer(mainPeerAddress, mainPeerAddress, config.NodePort, ntchan)
 	log.Println("init ", ntchan)
 
 	switch cmd {
@@ -464,6 +486,19 @@ func runSingleMode(cmd string, config Configuration) {
 
 	case "status":
 		status(p)
+
+	case "accounts":
+		req_msg := "{:REQ ACCOUNTS}"
+
+		reply := request_reply(p, req_msg)
+		reply_msg := netio.FromJSON(reply)
+		//reply_msg := netio.ParseMessageMap(reply)
+		fmt.Println("? ", reply_msg.Data)
+		dat := reply_msg.Data
+		var accs AccountState
+		accounts := edn.Unmarshal(dat, &accs)
+		fmt.Println(dat)
+		fmt.Println(accounts)
 
 	case "faucet":
 		MakeFaucet(ntchan)
@@ -488,10 +523,10 @@ func runSingleMode(cmd string, config Configuration) {
 	// 		time.Sleep(1 * time.Second)
 	// 	}
 
-	// 	// success := ntcl.MakeHandshake(mainPeer)
+	// 	// success := netio.MakeHandshake(mainPeer)
 	// 	// if success {
 	// 	// 	log.Println("start heartbeat")
-	// 	// 	ntcl.Hearbeat(mainPeer)
+	// 	// 	netio.Hearbeat(mainPeer)
 	// 	// }
 
 	case "getbalance":
@@ -529,8 +564,8 @@ func runListenMode(cmd string, config Configuration) {
 
 	// mainPeerAddress := config.PeerAddresses[0]
 	// log.Println("setup main peer ", mainPeerAddress)
-	// mainPeer := ntcl.CreatePeer(mainPeerAddress, config.NodePort)
-	// success := ntcl.MakeHandshake(mainPeer)
+	// mainPeer := netio.CreatePeer(mainPeerAddress, config.NodePort)
+	// success := netio.MakeHandshake(mainPeer)
 	// log.Println(success)
 	// log.Println("start heartbeat")
 	// if success {
@@ -538,7 +573,7 @@ func runListenMode(cmd string, config Configuration) {
 
 	// 	for _ = range time.Tick(hTime) {
 	// 		//log.Println(x)
-	// 		ntcl.Hearbeat(mainPeer)
+	// 		netio.Hearbeat(mainPeer)
 	// 	}
 
 	// }
@@ -699,15 +734,15 @@ func testclient_subscribe() {
 	}
 
 	log.Println("connected")
-	ntchan := ntcl.ConnNtchan(conn, "client", addr, true)
+	ntchan := netio.ConnNtchan(conn, "client", addr, true)
 
-	go ntcl.ReadLoop(ntchan)
+	go netio.ReadLoop(ntchan)
 
 	//subscribe example
 	//reqs := "REQ#PING#|"
 	reqs := "REQ#SUBTO#TIME|"
 	log.Println("subscribe")
-	ntcl.NetWrite(ntchan, reqs)
+	netio.NetWrite(ntchan, reqs)
 
 	//log.Println(clientNt.SrcName)
 
@@ -720,7 +755,7 @@ func testclient_subscribe() {
 	time.Sleep(2000 * time.Millisecond)
 
 	reqs = "REQ#SUBUN#TIME|"
-	ntcl.NetWrite(ntchan, reqs)
+	netio.NetWrite(ntchan, reqs)
 
 	log.Println("unsubscribe")
 
@@ -745,7 +780,7 @@ func main() {
 
 	switch cmd {
 
-	case "test", "ping", "status", "heartbeat", "getbalance", "faucet", "faucetloop", "txpool", "pushtx", "randomtx", "mybalance", "dnslook":
+	case "test", "ping", "status", "accounts", "heartbeat", "getbalance", "faucet", "faucetloop", "txpool", "pushtx", "randomtx", "mybalance", "dnslook":
 		runSingleMode(cmd, config)
 
 	case "createkeys", "sign", "signtx", "createtx", "verify", "verifytx":

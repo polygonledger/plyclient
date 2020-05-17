@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"net/http"
-	"text/template"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -38,9 +37,9 @@ func setupRouter() *gin.Engine {
 	})
 
 	r.Delims("{[{", "}]}")
-	r.SetFuncMap(template.FuncMap{
-		"formatAsDate": formatAsDate,
-	})
+	// r.SetFuncMap(template.FuncMap{
+	// 	"formatAsDate": formatAsDate,
+	// })
 	r.LoadHTMLFiles("./raw.tmpl")
 
 	r.GET("/raw", func(c *gin.Context) {
@@ -52,8 +51,8 @@ func setupRouter() *gin.Engine {
 	return r
 }
 
-func main() {
-	r := setupRouter()
-	// Listen and Server in 0.0.0.0:8080
-	r.Run(":8080")
-}
+// func main() {
+// 	r := setupRouter()
+// 	// Listen and Server in 0.0.0.0:8080
+// 	r.Run(":8080")
+// }
