@@ -20,7 +20,6 @@ import (
 	"github.com/polygonledger/node/block"
 	"github.com/polygonledger/node/crypto"
 	"github.com/polygonledger/node/netio"
-	"github.com/polygonledger/node/parser"
 )
 
 var Peers []netio.Peer
@@ -28,50 +27,6 @@ var Peers []netio.Peer
 const node_port = 8888
 
 const keysfile = "keys.wfe"
-
-// --- utils ---
-
-func ReadKeys(keysfile string) crypto.Keypair {
-
-	log.Println("read keys from ", keysfile)
-	dat, _ := ioutil.ReadFile(keysfile)
-	s := string(dat)
-	vs, _ := parser.ReadMapP(s)
-
-	privHex := parser.StringUnWrap(vs[0])
-	pubkeyHex := parser.StringUnWrap(vs[1])
-	log.Println("pub ", pubkeyHex)
-
-	return crypto.Keypair{PubKey: crypto.PubKeyFromHex(pubkeyHex), PrivKey: crypto.PrivKeyFromHex(privHex)}
-}
-
-func CreateKeypairFormat(privkey string, pubkey_string string, address string) string {
-	mp := map[string]string{"privkey": parser.StringWrap(privkey), "pubkey": parser.StringWrap(pubkey_string), "address": parser.StringWrap(address)}
-	m := parser.MakeMap(mp)
-	return m
-}
-
-func CreatePubKeypairFormat(pubkey_string string, address string) string {
-	mp := map[string]string{"pubkey": parser.StringWrap(pubkey_string), "address": parser.StringWrap(address)}
-	m := parser.MakeMap(mp)
-	return m
-}
-
-//write keys to file with format
-func WriteKeys(kp crypto.Keypair, keysfile string) {
-	pubkeyHex := crypto.PubKeyToHex(kp.PubKey)
-	privHex := crypto.PrivKeyToHex(kp.PrivKey)
-	address := crypto.Address(pubkeyHex)
-	s := CreateKeypairFormat(privHex, pubkeyHex, address)
-	ioutil.WriteFile(keysfile, []byte(s), 0644)
-}
-
-func WritePubKeys(kp crypto.Keypair, keysfile string) {
-	pubkeyHex := crypto.PubKeyToHex(kp.PubKey)
-	address := crypto.Address(pubkeyHex)
-	s := CreatePubKeypairFormat(pubkeyHex, address)
-	ioutil.WriteFile(keysfile, []byte(s), 0644)
-}
 
 func CreateKeys() {
 
@@ -88,48 +43,48 @@ func CreateKeys() {
 
 	kp := crypto.PairFromSecret(pw)
 
-	WriteKeys(kp, keysfile)
+	crypto.WriteKeys(kp, keysfile)
 
-	WritePubKeys(kp, "pubkeys.wfe")
+	crypto.WritePubKeys(kp, "pubkeys.wfe")
 
 }
 
 func Createtx() {
-	// kp := ReadKeys(keysfile)
+	kp := crypto.ReadKeys(keysfile)
 
-	// pubk := crypto.PubKeyToHex(kp.PubKey)
-	// addr := crypto.Address(pubk)
-	// s := block.AccountFromString(addr)
-	// log.Println("using account ", s)
+	pubk := crypto.PubKeyToHex(kp.PubKey)
+	addr := crypto.Address(pubk)
+	s := block.AccountFromString(addr)
+	log.Println("using account ", s)
 
-	// reader := bufio.NewReader(os.Stdin)
-	// fmt.Print("Enter amount: ")
-	// amount, _ := reader.ReadString('\n')
-	// amount = strings.Trim(amount, string('\n'))
-	// amount_int, _ := strconv.Atoi(amount)
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Print("Enter amount: ")
+	amount, _ := reader.ReadString('\n')
+	amount = strings.Trim(amount, string('\n'))
+	amount_int, _ := strconv.Atoi(amount)
 
-	// reader = bufio.NewReader(os.Stdin)
-	// fmt.Print("Enter recipient: ")
-	// recv, _ := reader.ReadString('\n')
-	// recv = strings.Trim(recv, string('\n'))
+	reader = bufio.NewReader(os.Stdin)
+	fmt.Print("Enter recipient: ")
+	recv, _ := reader.ReadString('\n')
+	recv = strings.Trim(recv, string('\n'))
 
-	// tx := block.Tx{Nonce: 1, Amount: amount_int, Sender: block.Account{AccountKey: addr}, Receiver: block.Account{AccountKey: recv}}
-	// log.Println("tx ", tx)
+	tx := block.Tx{Nonce: 1, Amount: amount_int, Sender: addr, Receiver: recv}
+	log.Println("tx ", tx)
 
-	// signature := crypto.SignTx(tx, kp)
-	// sighex := hex.EncodeToString(signature.Serialize())
+	signature := crypto.SignTx(tx, kp.PrivKey)
+	sighex := hex.EncodeToString(signature.Serialize())
 
-	// tx.Signature = sighex
-	// tx.SenderPubkey = crypto.PubKeyToHex(kp.PubKey)
-	// log.Println("tx ", tx)
+	tx.Signature = sighex
+	tx.SenderPubkey = crypto.PubKeyToHex(kp.PubKey)
+	log.Println("tx ", tx)
 
-	// txJson, _ := json.Marshal(tx)
-	// // //write to file
-	// // log.Println(txJson)
-	// f := "tx.json"
-	// ioutil.WriteFile(f, []byte(txJson), 0644)
+	txJson, _ := json.Marshal(tx)
+	// //write to file
+	// log.Println(txJson)
+	f := "tx.json"
+	ioutil.WriteFile(f, []byte(txJson), 0644)
 
-	// log.Println("wrote to " + f)
+	log.Println("wrote to " + f)
 }
 
 //
@@ -285,7 +240,7 @@ func fetchbalance(ntchan netio.Ntchan, addr string) {
 
 func Mybalance(ntchan netio.Ntchan) error {
 
-	kp := ReadKeys(keysfile)
+	kp := crypto.ReadKeys(keysfile)
 	pubk := crypto.PubKeyToHex(kp.PubKey)
 	myaddr := crypto.Address(pubk)
 
@@ -434,7 +389,7 @@ func status(peer netio.Peer) {
 
 func MakeFaucet(ntchan netio.Ntchan) {
 	log.Println("read keys")
-	kp := ReadKeys(keysfile)
+	kp := crypto.ReadKeys(keysfile)
 	pubk := crypto.PubKeyToHex(kp.PubKey)
 
 	addr := crypto.Address(pubk)
@@ -596,17 +551,18 @@ func runOffline(cmd string, config Configuration) {
 		CreateKeys()
 
 	case "readkeys":
-		kp := ReadKeys(keysfile)
+		kp := crypto.ReadKeys(keysfile)
 		log.Println(kp)
 
 	case "signtx":
 		fmt.Println("signtx")
 
-		kp := ReadKeys(keysfile)
+		//kp := crypto.ReadKeys(keysfile)
+		kp := crypto.PairFromSecret("test")
 		dat, _ := ioutil.ReadFile("example.txp")
 		msg := string(dat)
 		fmt.Println("sign >> ", msg)
-		signature := crypto.SignMsgHash(kp, msg)
+		signature := crypto.SignMsgHash(kp.PrivKey, msg)
 		log.Println("signature ", signature)
 
 		pubkey_string := crypto.PubKeyToHex(kp.PubKey)
@@ -620,14 +576,16 @@ func runOffline(cmd string, config Configuration) {
 		// log.Println("sighex ", sighex)
 
 	case "sign":
+		//kp := crypto.PairFromSecret("test")
+		kp := crypto.ReadKeys(keysfile)
 		reader := bufio.NewReader(os.Stdin)
 		fmt.Print("Enter message to sign: ")
 		msg, _ := reader.ReadString('\n')
 		msg = strings.Trim(msg, string('\n'))
 		//fmt.Println(msg)
-		kp := ReadKeys(keysfile)
-		signature := crypto.SignMsgHash(kp, msg)
-		//log.Println("signature ", signature)
+		fmt.Println("keys ", kp.PrivKey)
+		signature := crypto.SignMsgHash(kp.PrivKey, msg)
+		// //log.Println("signature ", signature)
 
 		sighex := hex.EncodeToString(signature.Serialize())
 		log.Println("signature as hex ", sighex)
